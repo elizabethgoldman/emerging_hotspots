@@ -42,3 +42,23 @@ def merge_polygon_simplify(merged_masks, datadir, iso):
     simp_masks = os.path.join(datadir, iso + "_tcd_mask.shp")
     arcpy.SimplifyPolygon_cartography(merged_masks, simp_masks, "BEND_SIMPLIFY", "500 Meters", "100 Hectares")
     return simp_masks
+
+def update_remap_table(remap_table, shortyear):
+    with arcpy.da.UpdateCursor(remap_table, "from_") as cursor:
+        for row in cursor:
+            row[0] = shortyear
+            cursor.updateRow(row)
+
+def update_reclass_function(lossyearmosaic, year_remap_function):
+    print "removing function"
+    arcpy.EditRasterFunction_management(lossyearmosaic, "EDIT_MOSAIC_DATASET", "REMOVE", year_remap_function)
+    print "inserting function"
+    arcpy.EditRasterFunction_management(lossyearmosaic, "EDIT_MOSAIC_DATASET", "INSERT", year_remap_function)
+
+def create_mosaic(country_loss_30tcd, scratch_gdb):
+    out_cs = arcpy.SpatialReference(4326)
+    mosaic_name = "mosaic_country_loss_30tcd"
+    mosaic_path = os.path.join(scratch_gdb, mosaic_name)
+    arcpy.CreateMosaicDataset_management(scratch_gdb, mosaic_name, out_cs)
+    arcpy.AddRastersToMosaicDataset_management(mosaic_path, "Raster Dataset", country_loss_30tcd)
+    return os.path.join(scratch_gdb, mosaic_name)

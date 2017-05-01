@@ -13,7 +13,7 @@ import utilities
 def emerging_hs_points(country_shapefile, datadir, iso):
     #''' Section 2: Set directories ###############################################################################'''
     maindir = r'U:\egoldman\hs_2015_update'
-    geodatabase = r'C:\GIS_data\projects\hs_factor\results.gdb'
+    geodatabase = r'U:\egoldman\hs_2015_update\results.gdb'
     outdir = os.path.join(geodatabase,"outdir")
     tile_grid = r'U:\egoldman\hs_2015_update\footprint.shp'
     masks = r'S:\masks'
@@ -56,22 +56,25 @@ def emerging_hs_points(country_shapefile, datadir, iso):
     f = os.path.basename(country_file).split(".")[0]
     #extract by AOI
     arcpy.AddMessage( "     extracting by mask")
-    outExtractbyMask = ExtractByMask(lossyearmosaic,country_file)
-    #multiply to get loss within 30% tree cover density
-    arcpy.AddMessage( "     multiplying")
-    outMult =outExtractbyMask*Raster(tcdmosaic)
-    #loop through years of loss data
-    value_years = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    for short_year in value_years:
+    country_loss_30tcd = ExtractByMask(lossyearmosaic,country_file)
+    mosaic_country_loss_30tcd = utilities.create_mosaic(country_loss_30tcd, scratch_gdb)
+
+    # define our remap table
+    remap_table = os.path.join(datadir, "hs_function_table.dbf")
+    year_remap_function = os.path.join(datadir, "remap_loss_year.rft.xml")
+    # loop over years 1-15
+    for short_year in range(1,16):
         print("\nPROCESSING RASTER VALUE {} (YEAR = {})".format(short_year, 2000 + short_year))
-        count = 1
         #reclassify per year
-        arcpy.AddMessage ("     reclassify")
-        reclass_raster = Reclassify(outMult, "Value", RemapValue([[short_year, 1]]),"NODATA")
+        utilities.update_remap_table(remap_table, short_year)
+
+        # update reclass function using table
+        utilities.update_reclass_function(mosaic_country_loss_30tcd, year_remap_function)
+
         #aggregate cell by factor
         arcpy.AddMessage ( "     aggregate")
         cell_factor = 80
-        aggregate_raster = Aggregate(reclass_raster, cell_factor, "SUM", "TRUNCATE", "DATA")
+        aggregate_raster = Aggregate(mosaic_country_loss_30tcd, cell_factor, "SUM", "TRUNCATE", "DATA")
         #raster to point
         arcpy.AddMessage ('     raster to point')
         #points_name = f + '_year_' + str(short_year)
