@@ -10,23 +10,31 @@ import datetime
 
 import utilities
 
-def emerging_hs_points(country_geometry, properties):
+def emerging_hs_points(country_shapefile, datadir, iso):
     #''' Section 2: Set directories ###############################################################################'''
-    indir = r'U:\egoldman\hs_2015_update'
     maindir = r'U:\egoldman\hs_2015_update'
     geodatabase = r'C:\GIS_data\projects\hs_factor\results.gdb'
     outdir = os.path.join(geodatabase,"outdir")
+    tile_grid = r'U:\egoldman\hs_2015_update\footprint.shp'
     masks = r'S:\masks'
 
     #'''Section 3: set path to mosaic files #######################################################################'''
-    lossyearmosaic = r'C:\GIS_data\projects\hs_factor\hs_mosaics.gdb\loss'
-    tcdmosaic = r'C:\GIS_data\projects\hs_factor\hs_mosaics.gdb\tcd'
-    hansenareamosaic = r'C:\GIS_data\projects\hs_factor\hs_mosaics.gdb\area'
+    lossyearmosaic = r'U:\egoldman\mosaics_updated.gdb\loss15'
+    tcdmosaic = r'U:\egoldman\mosaics_updated.gdb\tcd'
+    hansenareamosaic = r'U:\egoldman\mosaics_updated.gdb\area'
 
     #create tcd country masks
-    tile_list = utilities.select_tiles(country_geometry, properties, masks)
+    print " creating tile list"
+    tile_list = utilities.select_tiles(country_shapefile, tile_grid)
 
-    #country_mask = utilities.create_mask(tile_list, masks)
+    print " clipping masks"
+    clipped_mask_list = utilities.clipped_mask_list(tile_list, country_shapefile, datadir)
+
+    print " merging masks"
+    merged_country_mask = utilities.merge_clipped_masks(clipped_mask_list, datadir, iso)
+
+    print " simplifying mask"
+    simplified_mask = utilities.merge_polygon_simplify(merged_country_mask, datadir, iso)
 
     start = datetime.datetime.now()
 
@@ -44,15 +52,16 @@ def emerging_hs_points(country_geometry, properties):
     arcpy.env.snapRaster = hansenareamosaic
 
     #'''Section 5: main body of script ############################################################################'''
-    f = os.path.basename(indir).split(".")[0]
+    country_file = simplified_mask
+    f = os.path.basename(country_file).split(".")[0]
     #extract by AOI
     arcpy.AddMessage( "     extracting by mask")
-    outExtractbyMask = ExtractByMask(lossyearmosaic,indir)
+    outExtractbyMask = ExtractByMask(lossyearmosaic,country_file)
     #multiply to get loss within 30% tree cover density
     arcpy.AddMessage( "     multiplying")
     outMult =outExtractbyMask*Raster(tcdmosaic)
     #loop through years of loss data
-    value_years = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    value_years = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     for short_year in value_years:
         print("\nPROCESSING RASTER VALUE {} (YEAR = {})".format(short_year, 2000 + short_year))
         count = 1
@@ -73,7 +82,9 @@ def emerging_hs_points(country_geometry, properties):
         arcpy.AddMessage("     adding date")
         arcpy.AddField_management(temp_points, "date", "DATE")
         date_for_points = "\"01/01/{}\"".format(2000 + short_year)
-        arcpy.CalculateField_management(temp_points, "date", date_for_points)
+        print date_for_points
+        print temp_points
+        arcpy.CalculateField_management(temp_points, "date", date_for_points, "PYTHON")
         #create point feature class or append to existing
         if arcpy.Exists(all_points):
             arcpy.Append_management(temp_points, all_points)

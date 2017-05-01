@@ -4,55 +4,41 @@ from shapely.geometry import shape
 from shapely.geometry import mapping
 import arcpy
 import os
-def select_tiles(country, properties, masks):
-    footprint = r'U:\egoldman\hs_2015_update\footprint.shp'
-    # set schema
-    mask_tile = os.path.join(masks, "00N_000E.shp")
-    meta= fiona.open(mask_tile).meta
+def select_tiles(country, footprint):
+    tile_list = []
+    with fiona.open(footprint, 'r') as grid:
+        with fiona.open(country, 'r') as country:
 
-    # open mask collection for writing
-    mask_collection = r'U:\egoldman\hs_2015_update\mask_collection.shp'
-
-    with fiona.open(mask_collection, 'w', **meta) as mask_write:
-
-        tile_in_country_list = []
-        # open both input datasets
-        with fiona.open(footprint, 'r') as grid:
             # compare each feature in dataset 1 and 2
             for g in grid:
                 tileid = g['properties']['Name'][-8:]
-                #properties = g['properties']
-
-                # print tile ID if geometry intersects
-                if shape(g['geometry']).intersects(country):
-                    tile_in_country = tileid[-8:]
-                    mask_tile = os.path.join(masks, tile_in_country + ".shp")
-
-                    with fiona.open(mask_tile, 'r') as mask_file:
-                        for mask in mask_file:
-
-                            mask_geometry = shape(mask['geometry'])
-                            mask_properties = mask['properties']
-                            country_properties = {"test": "this is a column"}
-                            print country
-                            print shape(mask['geometry'])
-                            mask_write.write({'geometry': mapping(shape(mask['geometry'].intersection(country))), 'properties': mask_properties})
-                                             ## 'geometry': mapping(shape(g['geometry']).intersection(shape(i['geometry']))), 'properties': prop})
+                for i in country:
+                    # print tile ID if geometry intersects
+                    if shape(g['geometry']).intersects(shape(i['geometry'])):
+                        #print "{}: intersects".format(tileid)
+                        tile_list.append(tileid)
+                    else:
+                        pass
+                        #print "{}: doesn't intersect".format(tileid)
+    return tile_list
 
 
-        return tile_in_country_list
+def clipped_mask_list(tile_list, country_shapefile, datadir):
+    clipped_list = []
+    for tileid in tile_list:
+        mask_tile = os.path.join(r"s:\masks", tileid + ".shp")
+        clipped_mask = tileid + "_clip.shp"
+        clipped_mask_path = os.path.join(datadir, clipped_mask)
+        arcpy.Clip_analysis(mask_tile,country_shapefile, clipped_mask_path)
+        clipped_list.append(clipped_mask_path)
+    return clipped_list
 
+def merge_clipped_masks(clipped_list, datadir, iso):
+    merged_masks = os.path.join(datadir, iso + "_merged_mask.shp")
+    arcpy.Merge_management(clipped_list, merged_masks)
+    return merged_masks
 
-def create_mask(tile_list, masks):
-    arcpy.Clip_analysis(tile_path, geometry)
-
-    first_tile_name = tile_list[0]
-    first_tile_path = os.path.join(masks, first_tile_name + ".shp")
-    meta = fiona.open(first_tile_path).meta
-
-    with fiona.open(r'U:\egoldman\hs_2015_update\merge.shp', 'w', **meta) as merged_tiles:
-        for tile in tile_list:
-            tile_path = os.path.join(masks, tile + ".shp")
-            for features in fiona.open(tile_path):
-                merged_tiles.write(features)
-        merged_tiles.close()
+def merge_polygon_simplify(merged_masks, datadir, iso):
+    simp_masks = os.path.join(datadir, iso + "_tcd_mask.shp")
+    arcpy.SimplifyPolygon_cartography(merged_masks, simp_masks, "BEND_SIMPLIFY", "500 Meters", "100 Hectares")
+    return simp_masks
