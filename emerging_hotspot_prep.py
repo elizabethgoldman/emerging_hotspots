@@ -12,9 +12,9 @@ arcpy.CheckOutExtension("Spatial")
 arcpy.env.overwriteOutput = "TRUE"
 
 #''' Section 2: Set directories ##############################################################################'''
-indir = r'U:\egoldman\forest_masks\peru_mask_simp.shp'
-maindir = r'U:\egoldman\forest_masks'
-geodatabase = r'U:\egoldman\forest_masks\results.gdb'
+indir = r'U:\egoldman\hs_2015_update\small_test_aoi.shp'
+maindir = r'U:\egoldman\hs_2015_update'
+geodatabase = r'U:\egoldman\hs_2015_update\results.gdb'
 outdir = os.path.join(geodatabase,"outdir")
 
 #'''Section 3: set path to mosaic files #################################################################'''
